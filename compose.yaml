@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: forge
+      POSTGRES_PASSWORD: forge
+      POSTGRES_DB: forge
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forge -d forge"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build: .
+    image: forge-api:latest
+    working_dir: /app
+    ports:
+      - "8080:8080"
+    environment:
+      FORGE_CONFIG: /app/config.yaml
+    volumes:
+      - .:/app
+      - /var/lib/forge:/var/lib/forge
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - default
+      - forge_internal
+
+networks:
+  forge_internal:
+    name: forge_internal
+    internal: true
+
+volumes:
+  postgres_data:
