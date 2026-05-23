@@ -1,0 +1,29 @@
+server:
+  host: 0.0.0.0
+  port: 8080
+  public_url: http://localhost:8080
+
+database:
+  dsn: postgresql://forge:forge@postgres:5432/forge
+
+storage:
+  blob_dir: /var/lib/forge/blobs
+  log_dir: /var/lib/forge/logs
+  workspace_dir: /var/lib/forge/workspaces
+
+runner:
+  concurrency: 4
+  default_timeout_seconds: 1800
+  docker_network: forge_internal
+  registry_url: http://api:8080
+  forbid_external_egress: true
+
+limits:
+  max_pipeline_size_bytes: 1048576
+  max_artifact_size_bytes: 536870912
+
+slack:
+  webhook_url: ""
+  tags:
+    platform: "@platform-team"
+    security: "@security-team"
