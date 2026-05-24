@@ -1,8 +1,10 @@
 # Forge
 
-Forge is a Python CI/CD platform with an integrated artifact registry and dependency resolver. It exposes one HTTP API, runs pipeline jobs in isolated Docker containers, streams logs over Server-Sent Events, stores artifact metadata in Postgres, and stores artifact bytes as SHA-256-addressed blobs.
+Forge is a self-hosted CI/CD and artifact infrastructure platform that combines isolated pipeline execution, deterministic dependency resolution, real-time build orchestration, and an immutable artifact registry into a single production-grade system. Built for trustable software delivery, Forge executes YAML-defined pipelines inside hardened sandboxed environments, resolves and verifies dependencies with checksum integrity guarantees, streams logs live over SSE, and publishes versioned artifacts through a content-addressable registry with strict immutability and semver-aware resolution.
 
-Public URL: set `server.public_url` in `config.yaml` to the live VPS URL before grading.
+Designed as a lightweight but deeply engineered alternative to platforms like GitHub Actions, JFrog, and Sonatype, Forge focuses on core platform engineering fundamentals: scheduler design, isolation, integrity verification, dependency graph resolution, and reproducible builds — all deployable on a single VPS using Docker Compose.
+
+Public URL: set `server.public_url` in `config.yaml` to the live VPS URL.
 
 ## Required API
 
