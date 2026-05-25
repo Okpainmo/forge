@@ -1,0 +1,45 @@
+# Human-friendly name for this pipeline run.
+name: hello-forge
+
+# Version of this pipeline definition; Forge requires MAJOR.MINOR.PATCH format.
+version: 1.0.0
+
+# Jobs are the actual units of work Forge will run.
+jobs:
+  # This job is named "build"; logs will show this name.
+  build:
+    # Docker image used to run the commands below.
+    runtime: alpine:3.18
+
+    # Resource limits for the Docker container.
+    resources:
+      # Maximum CPU share for this job.
+      cpu: 1.0
+
+      # Maximum memory available to this job.
+      memory: 256Mi
+
+    # Steps run inside the container, in order.
+    steps:
+      # First step: print a message so logs prove the job started.
+      - name: say-hello
+        run: "echo 'Hello from Forge'"
+
+      # Second step: create a small file that will be packaged as an artifact.
+      - name: create-output
+        run: "mkdir -p output && echo 'Built by Forge' > output/message.txt"
+
+      # Third step: package the output folder into a tar.gz file.
+      - name: package
+        run: "tar czf hello-forge.tar.gz output"
+
+# Artifacts are files Forge publishes after all jobs succeed.
+artifacts:
+  # This artifact will be stored as hello-forge-artifact@1.0.0.
+  - name: hello-forge-artifact
+
+    # Artifact versions are immutable; reusing this exact version will return 409.
+    version: 1.0.0
+
+    # Path to the file created by the job, relative to the workspace.
+    path: ./hello-forge.tar.gz
