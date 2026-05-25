@@ -45,6 +45,21 @@ def validate_deps_payload(deps: object) -> list[dict]:
     return deps
 
 
+@app.get("/")
+def welcome() -> dict[str, str]:
+    return {
+        "name": "Forge",
+        "message": "Forge CI/CD and Artifact Registry API is running.",
+        "docs_url": "/docs",
+        "health_url": "/health",
+    }
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 @app.post("/runs")
 async def create_run(
     background: BackgroundTasks,
@@ -80,6 +95,11 @@ async def resolve_pipeline(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ResolutionError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.get("/whoami")
+def whoami(authorization: str | None = Header(default=None)) -> dict[str, str]:
+    return {"name": auth(authorization)}
 
 
 @app.get("/runs/{run_id}")
