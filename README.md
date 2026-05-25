@@ -11,6 +11,9 @@ Public URL: set `server.public_url` in `config.yaml` to the live VPS URL.
 All write operations require `Authorization: Bearer <token>`.
 
 ```text
+GET  /                                                                           -> welcome JSON
+GET  /health                                                                    -> {status: "ok"}
+GET  /whoami                                                                    -> {name}
 POST /runs                              multipart {pipeline: <file>}            -> {run_id}
 GET  /runs/{id}                                                                  -> {status, jobs, lockfile_url}
 GET  /runs/{id}/lockfile                                                         -> {lockfile JSON}
@@ -22,6 +25,101 @@ GET  /artifacts/{name}                                                          
 ```
 
 Forge also provides `POST /resolve` for `forge resolve`. The required API remains present exactly as specified.
+
+### Curl Samples
+
+Set these variables first:
+
+```bash
+BASE_URL="http://localhost:8080"
+TOKEN="fg_your_token_here"
+```
+
+Check the API welcome response:
+
+```bash
+curl "$BASE_URL/"
+```
+
+Check API health:
+
+```bash
+curl "$BASE_URL/health"
+```
+
+Check the current bearer token identity:
+
+```bash
+curl "$BASE_URL/whoami" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Create a pipeline run:
+
+```bash
+curl -X POST "$BASE_URL/runs" \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "pipeline=@pipelines/hello-forge.yaml"
+```
+
+Get a run status:
+
+```bash
+RUN_ID="paste-run-id-here"
+
+curl "$BASE_URL/runs/$RUN_ID"
+```
+
+Get a run lockfile:
+
+```bash
+curl "$BASE_URL/runs/$RUN_ID/lockfile"
+```
+
+Stream run logs:
+
+```bash
+curl -N "$BASE_URL/runs/$RUN_ID/logs?follow=true"
+```
+
+Publish an artifact:
+
+```bash
+ARTIFACT_FILE="out.tar.gz"
+ARTIFACT_SHA="$(sha256sum "$ARTIFACT_FILE" | awk '{print $1}')"
+
+curl -X POST "$BASE_URL/artifacts/lib-core/1.0.0" \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@$ARTIFACT_FILE" \
+  -F "checksum=sha256:$ARTIFACT_SHA"
+```
+
+Download an artifact:
+
+```bash
+curl -L "$BASE_URL/artifacts/lib-core/1.0.0" \
+  -o lib-core-1.0.0.tar.gz
+```
+
+Get artifact metadata:
+
+```bash
+curl "$BASE_URL/artifacts/lib-core/1.0.0/meta"
+```
+
+List artifact versions:
+
+```bash
+curl "$BASE_URL/artifacts/lib-core"
+```
+
+Resolve pipeline dependencies without running jobs:
+
+```bash
+curl -X POST "$BASE_URL/resolve" \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "pipeline=@prod-demo/pipelines/api-ci.yaml"
+```
 
 ## Pipeline YAML
 
@@ -178,7 +276,13 @@ Screenshot placeholder: add the captured Slack alert image to your submission pa
    cd forge
    ```
 
-3. Edit `config.yaml`:
+3. Create and edit the local config file:
+
+   ```bash
+   cp config.sample.yaml config.yaml
+   ```
+
+   Then set deployment-specific values in `config.yaml`:
 
    ```yaml
    server:
@@ -199,16 +303,63 @@ Screenshot placeholder: add the captured Slack alert image to your submission pa
    docker compose exec api python -m registry.auth create-token --name admin
    ```
 
-6. Install the CLI locally or on the VPS:
+6. Install the CLI locally or on the VPS(Requires `python3.12+`):
 
    ```bash
+   python3.12 -m venv .venv
+   source .venv/bin/activate
+   python -m pip install -U pip setuptools wheel
+   pip install .
+   ```
+
+   Or
+   
+   ```bash
+   python3.12 -m venv .venv
+   source .venv/bin/activate
+   python -m pip install -U pip setuptools wheel
    pip install -e .
    ```
+
+   `pip install -e .` means: install this project as a CLI/tool, but keep it linked to the current folder.
+   So instead of copying the code permanently into Python’s package directory, Python points back to your working repo.
+
+    Example:
+
+    ```bash
+    pip install -e .
+    ```
+
+    Then you can run:
+
+    ```bash
+    forge run pipeline.yaml
+    ```
+
+    Now if you edit `cli/forge.py`, the `forge` command will use your updated code immediately. You do not need to run `pip install` again.
+
+    Without `-e`:
+
+    ```bash
+    pip install .
+    ```
+
+    Python installs a copied snapshot of the code. If you later edit the repo, the installed CLI may still use the old copied version until you reinstall.
+
+    Simple version:
+
+    ```bash
+    pip install . # install a copy
+    pip install -e . # install a live link to this folder
+    ```
+
+    For development, `-e` is nicer. For a stable server setup, plain `pip install .` is cleaner.
 
 7. Log in:
 
    ```bash
    forge login http://YOUR_STATIC_IP_OR_DOMAIN:8080
+   # forge login http://localhost:8080
    ```
 
 8. Publish or run pipelines:
@@ -218,6 +369,78 @@ Screenshot placeholder: add the captured Slack alert image to your submission pa
    forge logs <run-id> --follow
    forge ls lib-core
    ```
+
+## Reset Local State
+
+Use the reset script when you want to wipe local test data and repeat setup from a clean Forge instance.
+
+The reset removes:
+
+- the Docker Compose volumes for this project, including the Postgres database volume
+- artifact blobs under `/var/lib/forge/blobs`
+- run logs under `/var/lib/forge/logs`
+- run workspaces under `/var/lib/forge/workspaces`
+
+The script is intentionally guarded. It only runs when `server.public_url` in `config.yaml` points to a local address:
+
+```yaml
+server:
+  public_url: http://localhost:8080
+```
+
+If `server.public_url` points to a VPS IP address, domain name, or any other non-local URL, the script refuses to run. This reduces the chance of wiping data on a shared or deployed environment by accident.
+
+Preview what would be deleted:
+
+```bash
+scripts/reset-state.sh
+```
+
+Perform the reset:
+
+```bash
+scripts/reset-state.sh --yes
+```
+
+If your Forge runtime data lives somewhere other than `/var/lib/forge`, pass the path explicitly:
+
+```bash
+scripts/reset-state.sh --yes --data-dir /path/to/forge-data
+```
+
+After resetting, start the platform again:
+
+```bash
+docker compose up -d
+```
+
+Create a fresh admin token:
+
+```bash
+docker compose exec api python -m registry.auth create-token --name admin
+```
+
+Then log in with the new token:
+
+```bash
+forge login http://localhost:8080
+```
+
+## Production-Like Demo
+
+See `prod-demo/` for a self-contained demo with:
+
+- a shared Python library in `prod-demo/lib`
+- a FastAPI service in `prod-demo/api`
+- Docker files for local API runtime and Forge CI runtime
+- a pipeline that publishes the library artifact
+- a pipeline that runs API CI against the published library artifact
+
+Start with:
+
+```bash
+cat prod-demo/README.md
+```
 
 ## Required Scenario Checks
 
@@ -231,3 +454,16 @@ Use these checks before submission:
 - Version conflict fails before any job starts.
 - Filesystem escape, memory exhaustion, and non-registry egress are contained by the container.
 - A pipeline emitting about 50MB logs remains streamable with `forge logs --follow`.
+
+## Can Forge Run CD Workflows Today?
+
+Forge can run shell commands in containers, so technically a pipeline step could deploy something.
+
+In its current state, Forge is better described as CI plus artifact registry, not full CD. It does not yet have deployment environments, approvals, secret management, rollback controls, release promotion, git triggers, or deployment history.
+
+So the honest answer is:
+ 
+- CI workflows: yes
+- artifact publishing: yes
+- dependency verification: yes
+- production-grade CD workflows: not yet
