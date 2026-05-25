@@ -44,9 +44,22 @@ def sha256_file(path: Path) -> str:
 
 @app.command()
 def login(url: str) -> None:
+    normalized_url = url.rstrip("/")
     token = typer.prompt("Bearer token", hide_input=True)
-    save_cli_config({"url": url.rstrip("/"), "token": token})
-    typer.echo(f"logged in to {url.rstrip('/')}")
+    try:
+        response = httpx.get(
+            f"{normalized_url}/whoami",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10,
+        )
+    except httpx.HTTPError as exc:
+        typer.echo(f"login failed: could not reach {normalized_url}: {exc}")
+        raise typer.Exit(1) from exc
+    if response.status_code >= 400:
+        typer.echo(f"login failed: {response.text}")
+        raise typer.Exit(1)
+    save_cli_config({"url": normalized_url, "token": token})
+    typer.echo(f"logged in to {normalized_url} as {response.json()['name']}")
 
 
 @app.command("run")
