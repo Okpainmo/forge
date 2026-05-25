@@ -1,9 +1,11 @@
 services:
   postgres:
     image: postgres:16-alpine
+    ports:
+      - "127.0.0.1:5433:5432"
     environment:
-      POSTGRES_USER: forge
-      POSTGRES_PASSWORD: forge
+      POSTGRES_USER: forge 
+      POSTGRES_PASSWORD: forge # demo purpose only: use proper env secret management for prod deployments
       POSTGRES_DB: forge
     volumes:
       - postgres_data:/var/lib/postgresql/data
