@@ -1,0 +1,59 @@
+name: publish-forge-demo-lib
+version: 1.0.0
+
+jobs:
+  package:
+    runtime: python:3.12-slim
+    resources:
+      cpu: 1.0
+      memory: 256Mi
+    steps:
+      - name: create-library-source
+        run: |
+          mkdir -p lib/forge_demo_lib
+          cat > lib/forge_demo_lib/__init__.py <<'PY'
+          from .pricing import calculate_total
+
+          __all__ = ["calculate_total"]
+          PY
+          cat > lib/forge_demo_lib/pricing.py <<'PY'
+          from decimal import Decimal, ROUND_HALF_UP
+
+
+          def calculate_total(subtotal: float, tax_rate: float) -> str:
+              subtotal_amount = Decimal(str(subtotal))
+              tax_multiplier = Decimal("1") + Decimal(str(tax_rate))
+              total = subtotal_amount * tax_multiplier
+              return str(total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+          PY
+          cat > lib/pyproject.toml <<'TOML'
+          [project]
+          name = "forge-demo-lib"
+          version = "1.0.0"
+          description = "Small pricing library used by the Forge production demo API"
+          requires-python = ">=3.12"
+
+          [build-system]
+          requires = ["setuptools>=64"]
+          build-backend = "setuptools.build_meta"
+
+          [tool.setuptools]
+          packages = ["forge_demo_lib"]
+          TOML
+
+      - name: validate-library
+        run: |
+          python -m compileall lib
+          PYTHONPATH=lib python - <<'PY'
+          from forge_demo_lib import calculate_total
+
+          assert calculate_total(100, 0.075) == "107.50"
+          PY
+
+      - name: package-library-artifact
+        run: "tar czf forge-demo-lib-1.0.0.tar.gz -C lib ."
+
+artifacts:
+  - name: forge-demo-lib
+    version: 1.0.0
+    path: ./forge-demo-lib-1.0.0.tar.gz

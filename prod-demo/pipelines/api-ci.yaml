@@ -1,0 +1,73 @@
+name: forge-demo-api-ci
+version: 0.1.0
+
+dependencies:
+  - name: forge-demo-lib
+    version: "1.0.0"
+
+jobs:
+  test:
+    runtime: forge-prod-demo-ci:latest
+    resources:
+      cpu: 1.0
+      memory: 512Mi
+    steps:
+      - name: create-api-source
+        run: |
+          mkdir -p api/app api/tests
+          touch api/app/__init__.py
+          cat > api/app/main.py <<'PY'
+          from fastapi import FastAPI
+          from pydantic import BaseModel, Field
+
+          from forge_demo_lib import calculate_total
+
+          app = FastAPI(title="Forge Production Demo API")
+
+
+          class QuoteRequest(BaseModel):
+              subtotal: float = Field(gt=0)
+              tax_rate: float = Field(ge=0, le=1)
+
+
+          @app.get("/health")
+          def health() -> dict[str, str]:
+              return {"status": "ok"}
+
+
+          @app.post("/quote")
+          def quote(request: QuoteRequest) -> dict[str, str | float]:
+              return {
+                  "subtotal": request.subtotal,
+                  "tax_rate": request.tax_rate,
+                  "total": calculate_total(request.subtotal, request.tax_rate),
+              }
+          PY
+          cat > api/tests/test_main.py <<'PY'
+          from fastapi.testclient import TestClient
+
+          from app.main import app
+
+
+          client = TestClient(app)
+
+
+          def test_health() -> None:
+              response = client.get("/health")
+              assert response.status_code == 200
+              assert response.json() == {"status": "ok"}
+
+
+          def test_quote_uses_shared_library() -> None:
+              response = client.post("/quote", json={"subtotal": 100, "tax_rate": 0.075})
+              assert response.status_code == 200
+              assert response.json()["total"] == "107.50"
+          PY
+
+      - name: inspect-resolved-dependency
+        run: "find deps/forge-demo-lib -maxdepth 2 -type f | sort"
+
+      - name: run-api-tests
+        run: "PYTHONPATH=deps/forge-demo-lib:api pytest -q api/tests"
+
+artifacts: []

@@ -1,0 +1,12 @@
+[project]
+name = "forge-demo-lib"
+version = "1.0.0"
+description = "Small pricing library used by the Forge production demo API"
+requires-python = ">=3.12"
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["forge_demo_lib"]
